@@ -13,26 +13,12 @@ namespace SylDNDBot
     {
         static void Main(string[] args)
         {
-            SpellLibrary.AddSpell(new Spell(
-                                      "Ray of Frost",
-                                      0,
-                                      "Evocation",
-                                      "1 action",
-                                      "60 feet",
-                                      SpellComponent.Verbal | SpellComponent.Somatic,
-                                      null,
-                                      "Instantaneous",
-                                      "N/A"));
+            TraitLibrary.LoadLibrary();
+            EquipmentLibrary.LoadLibrary();
+            DefinitionLibrary.LoadLibrary();
 
-            var client = new DiscordClient();
-            var parser = new CommandParser();
-
-            client.AddService(parser.ComService);
-
-            client.ExecuteAndWait(async () =>
-            {
-                await client.Connect("syldarion.0@gmail.com", "e8e6755f50");
-            });
+            var bot = new DiscordBot();
+            bot.StartBot();
         }
     }
 }
