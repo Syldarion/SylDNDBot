@@ -13,10 +13,6 @@ namespace SylDNDBot
     {
         static void Main(string[] args)
         {
-            TraitLibrary.LoadLibrary();
-            EquipmentLibrary.LoadLibrary();
-            DefinitionLibrary.LoadLibrary();
-
             var bot = new DiscordBot();
             bot.StartBot();
         }

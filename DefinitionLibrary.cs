@@ -1,119 +1,152 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
+using MySql.Data.MySqlClient;
 
 namespace SylDNDBot
 {
-    [Serializable]
-    public class Term
-    {
-        public string Name {get { return name; } set { name = value; } }
-        public string Definition { get { return definition; } set { definition = value; } }
-
-        private string name;
-        private string definition;
-
-        public Term(string nombre, string def)
-        {
-            name = nombre;
-            definition = def;
-        }
-
-        public override string ToString() { return $"{name}: {definition}"; }
-    }
-
     public static class DefinitionLibrary
     {
-        private static List<Term> allDefinitions = new List<Term>();
-        private const string LIBRARY_FILE_NAME = "definition_library.dat";
+        private const string GET_DEFINITION_CMD = "get_definition";
+        private const string ADD_DEFINITION_CMD = "add_definition";
+        private const string REMOVE_DEFINITION_CMD = "remove_definition";
+        private const string SEARCH_DEFINITIONS_CMD = "search_definitions";
 
-        public static void AddDefinition(string name, string definition)
+        public static string AddDefinition(string name, string definition)
         {
-            if(FindTerm(name) == null)
-                allDefinitions.Add(new Term(name, definition));
+            name = name.ToLower();
+
+            string response;
+
+            using (MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
+            {
+                conn.Open();
+                using (MySqlCommand add_definition_cmd = new MySqlCommand())
+                {
+                    add_definition_cmd.Connection = conn;
+                    add_definition_cmd.CommandText = ADD_DEFINITION_CMD;
+                    add_definition_cmd.CommandType = CommandType.StoredProcedure;
+
+                    add_definition_cmd.Parameters.AddWithValue("@TERMNAME", name);
+                    add_definition_cmd.Parameters.AddWithValue("@DEFINITION", definition);
+
+                    int rows = add_definition_cmd.ExecuteNonQuery();
+
+                    response = rows > 0
+                                   ? $"Successfully added {name} to the definition library!"
+                                   : $"{name} is already in the definition library!";
+                }
+            }
+
+            Console.WriteLine($"{DateTime.Now.ToFileTime()} - Add Definition - {name}");
+            return response;
         }
 
-        public static void RemoveDefinition(string name)
+        public static string RemoveDefinition(string name)
         {
-            allDefinitions.RemoveAll(x => x.Name.ToLower() == name.ToLower());
+            name = name.ToLower();
+
+            string response;
+
+            using (MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
+            {
+                conn.Open();
+                using (MySqlCommand remove_definition_cmd = new MySqlCommand())
+                {
+                    remove_definition_cmd.Connection = conn;
+                    remove_definition_cmd.CommandText = REMOVE_DEFINITION_CMD;
+                    remove_definition_cmd.CommandType = CommandType.StoredProcedure;
+
+                    remove_definition_cmd.Parameters.AddWithValue("@TERMNAME", name);
+
+                    int rows = remove_definition_cmd.ExecuteNonQuery();
+
+                    response = rows > 0
+                                   ? $"Successfully removed {name} from the definition library!"
+                                   : $"Could not find {name} in the definition library!";
+                }
+            }
+
+            Console.WriteLine($"{DateTime.Now.ToFileTime()} - Remove Definition - {name}");
+            return response;
         }
 
         public static string GetDefinition(string name)
         {
-            Term term = FindTerm(name);
-            if(term == null)
-                return $"Could not find {name} in definition library!";
-            return term.ToString();
-        }
+            name = name.ToLower();
 
-        public static string EditDefinition(string name, string definition)
-        {
-            Term term = FindTerm(name);
-            if(term == null)
-                return $"Could not find {name} in definition library!";
-            term.Definition = definition;
-            return term.ToString();
-        }
+            string response;
 
-        public static void SaveLibrary()
-        {
-            FileStream stream = new FileStream(LIBRARY_FILE_NAME, FileMode.Create);
-            BinaryFormatter formatter = new BinaryFormatter();
-            try
+            using (MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
             {
-                formatter.Serialize(stream, allDefinitions);
-            }
-            catch(SerializationException ex)
-            {
-                Console.WriteLine($"Failed to serialize: {ex.Message}");
-            }
-            finally
-            {
-                stream.Close();
-            }
-        }
+                conn.Open();
+                using (MySqlCommand get_defintiion_cmd = new MySqlCommand())
+                {
+                    get_defintiion_cmd.Connection = conn;
+                    get_defintiion_cmd.CommandText = GET_DEFINITION_CMD;
+                    get_defintiion_cmd.CommandType = CommandType.StoredProcedure;
 
-        public static void LoadLibrary()
-        {
-            if(!File.Exists(LIBRARY_FILE_NAME))
-            {
-                allDefinitions = new List<Term>();
-                return;
+                    get_defintiion_cmd.Parameters.AddWithValue("@TERMNAME", name);
+
+                    MySqlDataReader reader = get_defintiion_cmd.ExecuteReader();
+
+                    if (reader.Read())
+                    {
+                        StringBuilder builder = new StringBuilder();
+
+                        builder.AppendLine($"{reader["term_name"]}");
+                        builder.AppendLine($"{reader["definition"]}");
+
+                        response = builder.ToString();
+                    }
+                    else
+                        response = $"Could not find {name} in the definition library!";
+                }
             }
 
-            FileStream stream = new FileStream(LIBRARY_FILE_NAME, FileMode.Open);
-            try
-            {
-                BinaryFormatter formatter = new BinaryFormatter();
-                allDefinitions = (List<Term>)formatter.Deserialize(stream);
-            }
-            catch(SerializationException ex)
-            {
-                Console.WriteLine($"Failed to deserialize: {ex.Message}");
-            }
-            finally
-            {
-                stream.Close();
-            }
+            Console.WriteLine($"{DateTime.Now.ToFileTime()} - Get Definition - {name}");
+            return response;
         }
 
         public static string SearchTerms(string query)
         {
-            StringBuilder builder = new StringBuilder();
-            builder.AppendLine("Terms");
-            foreach(Term term in allDefinitions.Where(x => x.Name.ToLower().Contains(query.ToLower())).ToArray())
-                builder.AppendLine(term.Name);
-            return builder.ToString();
-        }
+            query = query.ToLower();
 
-        private static Term FindTerm(string name)
-        {
-            return allDefinitions.FirstOrDefault(x => x.Name.ToLower() == name.ToLower());
+            string response;
+
+            using (MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
+            {
+                conn.Open();
+                using (MySqlCommand search_definitions_cmd = new MySqlCommand())
+                {
+                    search_definitions_cmd.Connection = conn;
+                    search_definitions_cmd.CommandText = SEARCH_DEFINITIONS_CMD;
+                    search_definitions_cmd.CommandType = CommandType.StoredProcedure;
+
+                    search_definitions_cmd.Parameters.AddWithValue("@SEARCH", query);
+
+                    MySqlDataReader reader = search_definitions_cmd.ExecuteReader();
+
+                    StringBuilder builder = new StringBuilder();
+                    builder.AppendLine($"Search Results: {query}");
+
+                    while (reader.Read())
+                    {
+                        builder.AppendLine($"{reader["term_name"]}");
+                    }
+
+                    response = builder.ToString();
+                }
+            }
+
+            Console.WriteLine($"{DateTime.Now.ToFileTime()} - Search Definitions - {query}");
+            return response;
         }
     }
 }

@@ -14,9 +14,9 @@ namespace SylDNDBot
 {
     public static class SpellLibrary
     {
-        private const string GET_SPELL_INFO_CMD = "get_spell";
-        private const string ADD_SPELL_INFO_CMD = "add_spell";
-        private const string REM_SPELL_INFO_CMD = "remove_spell";
+        private const string GET_SPELL_CMD = "get_spell";
+        private const string ADD_SPELL_CMD = "add_spell";
+        private const string REM_SPELL_CMD = "remove_spell";
         private const string SEARCH_SPELLS_CMD = "search_spells";
 
         public static string AddSpell(string name, int level, string school, string castTime, string range,
@@ -32,7 +32,7 @@ namespace SylDNDBot
                 using(MySqlCommand add_spell_cmd = new MySqlCommand())
                 {
                     add_spell_cmd.Connection = conn;
-                    add_spell_cmd.CommandText = ADD_SPELL_INFO_CMD;
+                    add_spell_cmd.CommandText = ADD_SPELL_CMD;
                     add_spell_cmd.CommandType = CommandType.StoredProcedure;
 
                     add_spell_cmd.Parameters.AddWithValue("@SPELLNAME", name);
@@ -45,14 +45,11 @@ namespace SylDNDBot
                     add_spell_cmd.Parameters.AddWithValue("@DURATION", duration);
                     add_spell_cmd.Parameters.AddWithValue("@DESCRIPTION", description);
 
-                    add_spell_cmd.Parameters.Add("@RESULTMESSAGE", MySqlDbType.VarChar);
-                    add_spell_cmd.Parameters.Add("@SPELLID", MySqlDbType.Int32);
-                    add_spell_cmd.Parameters["@RESULTMESSAGE"].Direction = ParameterDirection.Output;
-                    add_spell_cmd.Parameters["@SPELLID"].Direction = ParameterDirection.Output;
+                    int rows = add_spell_cmd.ExecuteNonQuery();
 
-                    add_spell_cmd.ExecuteNonQuery();
-
-                    response = Convert.ToString(add_spell_cmd.Parameters["@RESULTMESSAGE"].Value);
+                    response = rows > 0
+                                   ? $"Successfully added {name} to the spell library!"
+                                   : $"{name} is already in the spell library!";
                 }
             }
 
@@ -72,14 +69,16 @@ namespace SylDNDBot
                 using(MySqlCommand remove_spell_cmd = new MySqlCommand())
                 {
                     remove_spell_cmd.Connection = conn;
-                    remove_spell_cmd.CommandText = REM_SPELL_INFO_CMD;
+                    remove_spell_cmd.CommandText = REM_SPELL_CMD;
                     remove_spell_cmd.CommandType = CommandType.StoredProcedure;
 
                     remove_spell_cmd.Parameters.AddWithValue("@SPELLNAME", name);
 
-                    remove_spell_cmd.ExecuteNonQuery();
+                    int rows = remove_spell_cmd.ExecuteNonQuery();
 
-                    response = $"Successfully removed {name} from the spell library!";
+                    response = rows > 0
+                                   ? $"Successfully removed {name} from the spell library!"
+                                   : $"Could not find {name} in the spell library!";
                 }
             }
 
@@ -99,7 +98,7 @@ namespace SylDNDBot
                 using(MySqlCommand get_spell_cmd = new MySqlCommand())
                 {
                     get_spell_cmd.Connection = conn;
-                    get_spell_cmd.CommandText = GET_SPELL_INFO_CMD;
+                    get_spell_cmd.CommandText = GET_SPELL_CMD;
                     get_spell_cmd.CommandType = CommandType.StoredProcedure;
 
                     get_spell_cmd.Parameters.AddWithValue("@SPELLNAME", name);
@@ -140,15 +139,15 @@ namespace SylDNDBot
             using(MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
             {
                 conn.Open();
-                using(MySqlCommand search_cmd = new MySqlCommand())
+                using(MySqlCommand search_spells_cmd = new MySqlCommand())
                 {
-                    search_cmd.Connection = conn;
-                    search_cmd.CommandText = SEARCH_SPELLS_CMD;
-                    search_cmd.CommandType = CommandType.StoredProcedure;
+                    search_spells_cmd.Connection = conn;
+                    search_spells_cmd.CommandText = SEARCH_SPELLS_CMD;
+                    search_spells_cmd.CommandType = CommandType.StoredProcedure;
 
-                    search_cmd.Parameters.AddWithValue("@SEARCH", query);
+                    search_spells_cmd.Parameters.AddWithValue("@SEARCH", query);
 
-                    MySqlDataReader reader = search_cmd.ExecuteReader();
+                    MySqlDataReader reader = search_spells_cmd.ExecuteReader();
 
                     StringBuilder builder = new StringBuilder();
                     builder.AppendLine($"Search Results: {query}");

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
@@ -7,96 +8,146 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
+using MySql.Data.MySqlClient;
 
 namespace SylDNDBot
 {
     public static class TraitLibrary
     {
-        private static List<Trait> allTraits = new List<Trait>();
-        private const string LIBRARY_FILE_NAME = "trait_library.dat";
+        public const string GET_TRAIT_CMD = "get_trait";
+        public const string ADD_TRAIT_CMD = "add_trait";
+        public const string REMOVE_TRAIT_CMD = "remove_trait";
+        public const string SEARCH_TRAITS_CMD = "search_traits";
 
-        public static void AddTrait(Trait newTrait)
+        public static string AddTrait(string name, string description)
         {
-            if(FindTrait(newTrait.Name) == null)
-                allTraits.Add(newTrait);
+            name = name.ToLower();
+
+            string response;
+
+            using(MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
+            {
+                conn.Open();
+                using(MySqlCommand add_trait_cmd = new MySqlCommand())
+                {
+                    add_trait_cmd.Connection = conn;
+                    add_trait_cmd.CommandText = ADD_TRAIT_CMD;
+                    add_trait_cmd.CommandType = CommandType.StoredProcedure;
+
+                    add_trait_cmd.Parameters.AddWithValue("@TRAITNAME", name);
+                    add_trait_cmd.Parameters.AddWithValue("@DESCRIPTION", description);
+
+                    int rows = add_trait_cmd.ExecuteNonQuery();
+
+                    response = rows > 0
+                                   ? $"Successfully added {name} to the trait library!"
+                                   : $"{name} is already in the trait library!";
+                }
+            }
+
+            Console.WriteLine($"{DateTime.Now.ToFileTime()} - Add Trait - {name}");
+            return response;
         }
 
-        public static void RemoveTrait(string name)
+        public static string RemoveTrait(string name)
         {
-            allTraits.RemoveAll(x => x.Name.ToLower() == name.ToLower());
+            name = name.ToLower();
+
+            string response;
+
+            using(MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
+            {
+                conn.Open();
+                using(MySqlCommand remove_trait_cmd = new MySqlCommand())
+                {
+                    remove_trait_cmd.Connection = conn;
+                    remove_trait_cmd.CommandText = REMOVE_TRAIT_CMD;
+                    remove_trait_cmd.CommandType = CommandType.StoredProcedure;
+
+                    remove_trait_cmd.Parameters.AddWithValue("@TRAITNAME", name);
+
+                    int rows = remove_trait_cmd.ExecuteNonQuery();
+
+                    response = rows > 0
+                                   ? $"Successfully removed {name} from the trait library!"
+                                   : $"Could not find {name} in the trait library!";
+                }
+            }
+
+            Console.WriteLine($"{DateTime.Now.ToFileTime()} - Remove Trait - {name}");
+            return response;
         }
 
         public static string GetTraitInfo(string name)
         {
-            Trait trait = FindTrait(name);
-            if(trait == null)
-                return $"Cound not find {name} in trait library!";
-            return $"{trait.Name}\n{trait.Description}";
-        }
+            name = name.ToLower();
 
-        public static string EditTraitInfo(string name, string value)
-        {
-            Trait trait = FindTrait(name);
-            if(trait == null)
-                return $"Could not find {name} in trait library!";
-            trait.Description = value;
-            return $"{trait.Name}\n{trait.Description}";
-        }
+            string response;
 
-        public static void SaveLibrary()
-        {
-            FileStream stream = new FileStream(LIBRARY_FILE_NAME, FileMode.Create);
-            BinaryFormatter formatter = new BinaryFormatter();
-            try
+            using(MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
             {
-                formatter.Serialize(stream, allTraits);
-            }
-            catch (SerializationException ex)
-            {
-                Console.WriteLine($"Failed to serialize: {ex.Message}");
-            }
-            finally
-            {
-                stream.Close();
-            }
-        }
+                conn.Open();
+                using(MySqlCommand get_trait_cmd = new MySqlCommand())
+                {
+                    get_trait_cmd.Connection = conn;
+                    get_trait_cmd.CommandText = GET_TRAIT_CMD;
+                    get_trait_cmd.CommandType = CommandType.StoredProcedure;
 
-        public static void LoadLibrary()
-        {
-            if (!File.Exists(LIBRARY_FILE_NAME))
-            {
-                allTraits = new List<Trait>();
-                return;
+                    get_trait_cmd.Parameters.AddWithValue("@TRAITNAME", name);
+
+                    MySqlDataReader reader = get_trait_cmd.ExecuteReader();
+
+                    if(reader.Read())
+                    {
+                        StringBuilder builder = new StringBuilder();
+
+                        builder.AppendLine($"{reader["trait_name"]}");
+                        builder.AppendLine($"{reader["description"]}");
+
+                        response = builder.ToString();
+                    }
+                    else
+                        response = $"Could not find {name} in the trait library!";
+                }
             }
 
-            FileStream stream = new FileStream(LIBRARY_FILE_NAME, FileMode.Open);
-            try
-            {
-                BinaryFormatter formatter = new BinaryFormatter();
-                allTraits = (List<Trait>)formatter.Deserialize(stream);
-            }
-            catch (SerializationException ex)
-            {
-                Console.WriteLine($"Failed to deserialize: {ex.Message}");
-            }
-            finally
-            {
-                stream.Close();
-            }
+            Console.WriteLine($"{DateTime.Now.ToFileTime()} - Get Trait - {name}");
+            return response;
         }
 
         public static string SearchTraits(string query)
         {
-            StringBuilder builder = new StringBuilder();
-            builder.AppendLine("Spells");
-            foreach (Trait trait in allTraits.Where(x => x.Name.ToLower().Contains(query.ToLower())).ToArray())
-                builder.AppendLine(trait.Name);
-            return builder.ToString();
-        }
+            query = query.ToLower();
 
-        private static Trait FindTrait(string name)
-        {
-            return allTraits.FirstOrDefault(x => x.Name.ToLower() == name.ToLower());
+            string response;
+
+            using(MySqlConnection conn = new MySqlConnection(ServerInfo.ConnectionString))
+            {
+                conn.Open();
+                using(MySqlCommand search_traits_cmd = new MySqlCommand())
+                {
+                    search_traits_cmd.Connection = conn;
+                    search_traits_cmd.CommandText = SEARCH_TRAITS_CMD;
+                    search_traits_cmd.CommandType = CommandType.StoredProcedure;
+
+                    search_traits_cmd.Parameters.AddWithValue("@SEARCH", query);
+
+                    MySqlDataReader reader = search_traits_cmd.ExecuteReader();
+                    
+                    StringBuilder builder = new StringBuilder();
+                    builder.AppendLine($"Search Results: {query}");
+
+                    while(reader.Read())
+                    {
+                        builder.AppendLine($"{reader["trait_name"]}");
+                    }
+
+                    response = builder.ToString();
+                }
+            }
+
+            Console.WriteLine($"{DateTime.Now.ToFileTime()} - Search Traits - {query}");
+            return response;
         }
     }
 }
