@@ -35,7 +35,7 @@ namespace SylDNDBot
 
         public void StartBot()
         {
-            Client.ExecuteAndWait(async () => { await Client.Connect("syldarion.0@gmail.com", "e8e6755f50"); });
+            Client.ExecuteAndWait(async () => { await Client.Connect("username", "password"); });
         }
 
         public void PopulateCommands()
